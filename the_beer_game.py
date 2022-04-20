@@ -97,7 +97,7 @@ def reset_inventories(inventory):
 # returns the ETH balance of a given account
 # INPUTS: account NAME, as a string, e.g. 'manufacturer'
 def get_balance(account):
-    return float(web3.fromWei(web3.eth.get_balance(accounts[account]['address']), 'ether'))
+    return float(web3.fromWei(web3.eth.getBalance(accounts[account]['address']), 'ether'))
 
 '''
 used to send eth from one wallet to another
@@ -120,7 +120,7 @@ def send_eth(from_account, to_account, amount):
         'gasPrice': web3.toWei('50', 'gwei')
     }
     # sign the transaction
-    singed_tx = web3.eth.account.sign_transaction(tx, accounts[from_account]['private_key'])
+    singed_tx = web3.eth.account.signTransaction(tx, accounts[from_account]['private_key'])
     # send transaction
     tx_hash = web3.eth.sendRawTransaction(singed_tx.rawTransaction)
     # get transaction hash
@@ -138,11 +138,11 @@ def reset_balances(balance):
     for account in accounts:
         if account != 'market':
             # if the agent has more than 1 ETH, send all but 1 ETH to market to cover gas
-            if web3.fromWei(web3.eth.get_balance(accounts[account]['address']), 'ether') >= 1: 
-                send_eth(account, 'market', (web3.fromWei(web3.eth.get_balance(accounts[account]['address']), 'ether')-1))
+            if web3.fromWei(web3.eth.getBalance(accounts[account]['address']), 'ether') >= 1: 
+                send_eth(account, 'market', (web3.fromWei(web3.eth.getBalance(accounts[account]['address']), 'ether')-1))
             # if the agent has less than 1 ETH, the market sends them the amount such that they now have 1 ETH
             else:
-                send_eth('market', account, 1-(web3.fromWei(web3.eth.get_balance(accounts[account]['address']), 'ether')))
+                send_eth('market', account, 1-(web3.fromWei(web3.eth.getBalance(accounts[account]['address']), 'ether')))
                 
     # redistribute desired ETH to each agent
     for account in accounts:

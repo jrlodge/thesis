@@ -1,17 +1,8 @@
-# need to set up a proper project directory
 TERMINAL 1
-cd..
-cd..
-cd projects
-cd the_beer_game
 ganache-cli -d -m myth like bonus scare over problem client lizard pioneer submit female collect -a 5 -e 10000000 -l 10000000 --db ./ganache_db
 
-# REMEMBER TO USE kudos
+# may need to use sudo
 TERMINAL 2
-cd..
-cd..
-cd projects
-cd the_beer_game
 cd truffle
 truffle compile
 truffle migrate

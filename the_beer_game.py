@@ -268,13 +268,13 @@ def the_beer_game(starting_balance, starting_inventory, beer_price, starting_dem
         orders_from_market.append(demand[i]) # market demand order from retailer
         orders_from_retailer.append(max(0,round(base_stock[i] - retailer_position[i])))
         orders_from_wholesaler.append(max(0,round(base_stock[i] - wholesaler_position[i])))
-        orders_from_distributor.append(max(0,round(base_stock[i] - distributor_position[i])))
+        orders_from_distributor.append(max(0, round(base_stock[i] - distributor_position[i])))
         orders_from_manufacturer.append(max(0,round(base_stock[i] - manufacturer_position[i])))
 
         # send ETH corresponding to orders placed, a 50% markup is applied for each touchpoint in the supply chain
         send_eth('market', 'retailer', orders_from_market[i]*beer_price*3) # consumers purchase from retailer
         send_eth('retailer', 'wholesaler', orders_from_retailer[i]*beer_price*2.5)
-        send_eth('wholesaler', 'distributor', orders_from_wholesaler[i]*beer_price*2)
+        send_eth('wholesaler', 'distributor', orders_from_wholesaler[i]*beer_price*2)        
         send_eth('distributor', 'manufacturer', orders_from_distributor[i]*beer_price*1.5)
         send_eth('manufacturer', 'market', orders_from_manufacturer[i]*beer_price) # cost to manufacture beer
 
@@ -286,10 +286,10 @@ def the_beer_game(starting_balance, starting_inventory, beer_price, starting_dem
 
         # calculate and append deliveries for next round
         deliveries_to_manufacturer.append(round(min(get_inventory('market'), orders_from_manufacturer[i])))
-        deliveries_to_distributor.append(round(min(get_inventory('manufacturer'), orders_from_distributor[i])))
-        deliveries_to_wholesaler.append(round(min(get_inventory('distributor'), orders_from_wholesaler[i])))
-        deliveries_to_retailer.append(round(min(get_inventory('wholesaler'), orders_from_retailer[i])))
-        deliveries_to_market.append(round(min(get_inventory('retailer'), orders_from_market[i])))
+        deliveries_to_distributor.append(round(min(get_inventory('manufacturer'), orders_from_distributor[i] + manufacturer_backorder[i])))
+        deliveries_to_wholesaler.append(round(min(get_inventory('distributor'), orders_from_wholesaler[i] + distributor_backorder[i])))
+        deliveries_to_retailer.append(round(min(get_inventory('wholesaler'), orders_from_retailer[i] + wholesaler_backorder[i])))
+        deliveries_to_market.append(round(min(get_inventory('retailer'), orders_from_market[i] + retailer_backorder[i])))
 
         for account in accounts:
             print(account, get_balance(account), 'ETH')

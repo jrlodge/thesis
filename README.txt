@@ -6,7 +6,7 @@ cd projects
 cd the_beer_game
 ganache-cli -d -m myth like bonus scare over problem client lizard pioneer submit female collect -a 5 -e 10000000 -l 10000000 --db ./ganache_db
 
-
+# REMEMBER TO USE kudos
 TERMINAL 2
 cd..
 cd..

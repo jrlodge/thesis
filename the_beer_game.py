@@ -56,13 +56,15 @@ to_account: string, name of the account receiving
 amount: integer, amount to be sent in BEER
 '''
 def send_beer(from_account, to_account, amount):
+    ret = max(0, amount - get_inventory(from_account))
     if amount == 0:
         return
     nonce = web3.eth.getTransactionCount(accounts[from_account]['address'])
 
     deepbrew_txn = deepbrew.functions.transfer(
         accounts[to_account]['address'],
-        round(amount), # round because ERC20 can't be divided, thus can only be traded in integer quantities
+        # send as much as possible in account, no more
+        round(min(get_inventory(from_account), amount)), # round because ERC20 can't be divided, thus can only be traded in integer quantities
     ).buildTransaction({
         'gas': 70000,
         'gasPrice': web3.toWei('50', 'gwei'),
@@ -77,6 +79,9 @@ def send_beer(from_account, to_account, amount):
     signed_txn.v
     web3.eth.sendRawTransaction(signed_txn.rawTransaction) 
     web3.toHex(web3.sha3(signed_txn.rawTransaction))
+    
+    # if amount to send is greater than inventory of sender, return the difference, else return 0
+    return ret
 
 '''
 function called at the start of each round to return agent inventory to initial conditions
@@ -364,7 +369,7 @@ if __name__ == '__main__':
         print('--------------------------------')
     else:
         sys.exit('Connection to Ganache unsuccessful.')
-    
+    '''
     # the_beer_game(starting_balance, starting_inventory, beer_price, starting_demand, rounds)
     df = the_beer_game(250000, 12, 0.002, 4, 50)
     df.plot(y=['orders_from_manufacturer','orders_from_distributor','orders_from_wholesaler','orders_from_retailer','market_demand']) 
@@ -384,8 +389,13 @@ if __name__ == '__main__':
     plt.ylabel('Profit and Loss (ETH)')
     plt.show()
     '''
+    reset_inventories(20)
     reset_balances(200000)
     for account in accounts:
             print(account, get_balance(account), 'ETH')
             print(account, get_inventory(account), 'BEER')
-    '''
+    print(send_beer('manufacturer', 'distributor', 21))
+    print()
+    for account in accounts:
+            print(account, get_balance(account), 'ETH')
+            print(account, get_inventory(account), 'BEER')

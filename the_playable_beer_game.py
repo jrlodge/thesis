@@ -38,7 +38,7 @@ accounts = {
 # BEER functions
 # ERC20 contract address (DeepBrew, BEER)
 # need to find a way to grab the contract address with code rather than manually
-deepbrew_contract = Web3.toChecksumAddress('0x950C78214FB4F1748671dAdDcb0a12B37C00e90d')
+deepbrew_contract = Web3.toChecksumAddress('0x6dF43d5EFD4ddE3cC72EDf36F012A5c390b628aC')
 
 # ERC20 contract object
 deepbrew = web3.eth.contract(address=deepbrew_contract, abi=EIP20_ABI)
@@ -253,10 +253,14 @@ def the_beer_game(starting_balance, starting_inventory, beer_price, starting_dem
         else:
             '''
             # my equation
-            retailer_position.append(round(retailer_inventory[i] + orders_from_retailer[i-1] + wholesaler_backorder[i] - orders_from_market[i-1] - retailer_backorder[i]))
-            wholesaler_position.append(round(wholesaler_inventory[i] + orders_from_wholesaler[i-1] + distributor_backorder[i-1] - orders_from_retailer[i-1] - wholesaler_backorder[i]))
-            distributor_position.append(round(distributor_inventory[i] + orders_from_distributor[i-1] + manufacturer_backorder[i] - orders_from_wholesaler[i-1] - distributor_backorder[i]))
-            manufacturer_position.append(round(manufacturer_inventory[i] + orders_from_manufacturer[i-1] - orders_from_distributor[i-1] - manufacturer_backorder[i])) # manufacturer's supplier (market) has no backorder
+            retailer_position.append(round(retailer_inventory[i] + orders_from_retailer[i-1]
+                                           + wholesaler_backorder[i] - orders_from_market[i-1] - retailer_backorder[i]))
+            wholesaler_position.append(round(wholesaler_inventory[i] + orders_from_wholesaler[i-1]
+                                             + distributor_backorder[i-1] - orders_from_retailer[i-1] - wholesaler_backorder[i]))
+            distributor_position.append(round(distributor_inventory[i] + orders_from_distributor[i-1]
+                                              + manufacturer_backorder[i] - orders_from_wholesaler[i-1] - distributor_backorder[i]))
+            manufacturer_position.append(round(manufacturer_inventory[i] + orders_from_manufacturer[i-1]
+                                               - orders_from_distributor[i-1] - manufacturer_backorder[i])) # manufacturer's supplier (market) has no backorder
             '''
             # flowlity's equation 
             retailer_position.append(round(sum(orders_from_retailer[-3:]) 

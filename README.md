@@ -5,7 +5,7 @@ ganache-cli -d -m myth like bonus scare over problem client lizard pioneer submi
 Note: may need to use sudo
 cd truffle\
 truffle compile\
-truffle migrate
+truffle migrate\
 Note: may need to wait a few seconds to load\
 truffle console\
 const deepbrew = await DeepBrew.deployed()\

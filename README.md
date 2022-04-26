@@ -6,7 +6,7 @@ Note: may need to use sudo
 cd truffle\
 truffle compile\
 truffle migrate
-Note: may need to wait a few seconds to load
+Note: may need to wait a few seconds to load\
 truffle console\
 const deepbrew = await DeepBrew.deployed()\
 (await deepbrew.totalSupply()).toString()\

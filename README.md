@@ -2,7 +2,7 @@
 ganache-cli -d -m myth like bonus scare over problem client lizard pioneer submit female collect -a 5 -e 10000000 -l 10000000 --db ./ganache_db
 
 # TERMINAL 2
-Note: may need to use sudo
+Note: may need to use sudo\
 cd truffle\
 truffle compile\
 truffle migrate\

@@ -26,7 +26,7 @@ env.reset()
 n_actions = env.action_space.shape[-1]
 action_noise = NormalActionNoise(mean=np.zeros(n_actions), sigma=0.1 * np.ones(n_actions))
 
-model = DDPG('MlpPolicy', env=env, action_noise=action_noise, tensorboard_log=logdir, verbose=1)
+model = DDPG('MultiInputPolicy', env=env, action_noise=action_noise, tensorboard_log=logdir, verbose=1)
 model.learn(total_timesteps=TIMESTEPS, reset_num_timesteps=False, log_interval=10, tb_log_name=f"DDPG_LOG")
 
 '''iters = 0

@@ -249,7 +249,7 @@ class BeerGameEnv(gym.Env):
             self.orders_from_retailer.append(max(0,round(self.base_stock[i] - self.retailer_position[i])))
             self.orders_from_wholesaler.append(max(0,round(self.base_stock[i] - self.wholesaler_position[i])))
 
-            self.orders_from_distributor.append(action)
+            self.orders_from_distributor.append(int(action))
             
             self.orders_from_manufacturer.append(max(0,round(self.base_stock[i] - self.manufacturer_position[i])))
 

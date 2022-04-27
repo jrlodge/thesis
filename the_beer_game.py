@@ -2,10 +2,10 @@
 from web3 import Web3
 from ethtoken.abi import EIP20_ABI
 import sys
-import random
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from gbm import GBM
 
 # connect to ganache
 ganache_url = 'HTTP://127.0.0.1:8545'
@@ -155,7 +155,7 @@ def reset_balances(balance):
             send_eth('market', account, balance-1) # send back the desired amount -1 
 
 # game functions
-def the_beer_game(starting_balance, starting_inventory, beer_price, starting_demand, rounds):
+def the_beer_game(starting_balance, starting_inventory, starting_beer_price, starting_demand, rounds):
     # reset balances and inventories
     reset_balances(starting_balance)
     reset_inventories(starting_inventory)
@@ -204,14 +204,11 @@ def the_beer_game(starting_balance, starting_inventory, beer_price, starting_dem
     distributor_expenses = []
     manufacturer_expenses = []
     
+    # geometric brownian motion for demand and BEER price
+    demand = GBM(starting_demand, 2, 2, 1/rounds, 1).prices
+    beer_price = GBM(starting_beer_price, 2, 2, 1/rounds, 1).prices
+    
     for i in range(rounds):
-        # increase demand 
-        if i == 0:
-            demand.append(starting_demand)
-        #elif i % 10 == 0:
-            #demand.append(round(demand[i-1]*1.5)) # increase demand by 50% every 10th round
-        else:
-            demand.append(demand[i-1]*1.1) # increase demand by 10% every other round
         
         print('Round', i+1, 'of', rounds)
         
@@ -277,11 +274,11 @@ def the_beer_game(starting_balance, starting_inventory, beer_price, starting_dem
         orders_from_manufacturer.append(max(0,round(base_stock[i] - manufacturer_position[i])))
 
         # send ETH corresponding to orders placed, a 50% markup is applied for each touchpoint in the supply chain
-        send_eth('market', 'retailer', orders_from_market[i]*beer_price*3) # consumers purchase from retailer
-        send_eth('retailer', 'wholesaler', orders_from_retailer[i]*beer_price*2.5)
-        send_eth('wholesaler', 'distributor', orders_from_wholesaler[i]*beer_price*2)        
-        send_eth('distributor', 'manufacturer', orders_from_distributor[i]*beer_price*1.5)
-        send_eth('manufacturer', 'market', orders_from_manufacturer[i]*beer_price) # cost to manufacture beer
+        send_eth('market', 'retailer', orders_from_market[i]*beer_price[i]*3) # consumers purchase from retailer
+        send_eth('retailer', 'wholesaler', orders_from_retailer[i]*beer_price[i]*2.5)
+        send_eth('wholesaler', 'distributor', orders_from_wholesaler[i]*beer_price[i]*2)        
+        send_eth('distributor', 'manufacturer', orders_from_distributor[i]*beer_price[i]*1.5)
+        send_eth('manufacturer', 'market', orders_from_manufacturer[i]*beer_price[i]) # cost to manufacture beer
 
         # calculate and append expenses
         retailer_expenses.append(get_balance('retailer')-retailer_balance[i])
@@ -369,7 +366,7 @@ if __name__ == '__main__':
         print('--------------------------------')
     else:
         sys.exit('Connection to Ganache unsuccessful.')
-    '''
+    
     # the_beer_game(starting_balance, starting_inventory, beer_price, starting_demand, rounds)
     df = the_beer_game(250000, 12, 0.002, 4, 50)
     df.plot(y=['orders_from_manufacturer','orders_from_distributor','orders_from_wholesaler','orders_from_retailer','market_demand']) 
@@ -399,3 +396,4 @@ if __name__ == '__main__':
     for account in accounts:
             print(account, get_balance(account), 'ETH')
             print(account, get_inventory(account), 'BEER')
+    '''

@@ -1,5 +1,5 @@
 # INSTRUCTIONS
-## REQUIREMENTS
+## DEPENDENCIES
 ### LANGUAGES
 * python
 * node.js
@@ -12,6 +12,7 @@
 * tensorboard
 * gym
 * stable-baselines3
+* tensorflow
 ### PIP PACKAGES
 * web3
 * ethtoken
@@ -26,15 +27,15 @@ Deploy the DeepBrew ERC20 contract onto the now running testnet.
 * cd truffle
 * truffle migrate
 
+Locate the DeepBrew contract address in TERMINAL 2, paste the address into-
+
+* deepbrew_contract = Web3.toChecksumAddress('[CONTRACT ADDRESS]')
+
+-any files which run The Beer Game.
+
 Optional: check that the contract was deployed correctly.
 
 * truffle console
 * const deepbrew = await DeepBrew.deployed()
 * (await deepbrew.totalSupply()).toString()
 * (await deepbrew.balanceOf('0xFE41FE950d4835bD539AC24fBaaDED16b2E32922')).toString()
-
-Locate the DeepBrew contract address in TERMINAL 2, paste the address into-
-
-* deepbrew_contract = Web3.toChecksumAddress('[CONTRACT ADDRESS]')
-
--any files which run The Beer Game.

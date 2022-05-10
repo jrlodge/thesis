@@ -1,3 +1,7 @@
+'''
+run this script to watch four base-stock agents play the beer game with one another
+plots summarising the game will be displayed after the rounds are completed
+'''
 # libraries
 from web3 import Web3
 from ethtoken.abi import EIP20_ABI
@@ -176,12 +180,12 @@ def the_beer_game(starting_balance, starting_inventory, starting_beer_price, sta
     wholesaler_balance = []
     retailer_balance = []
     market_balance = []
-    # deliveries - offset index by 1 as deliveries are calculated for the turn after the current turn
-    deliveries_to_manufacturer = [0]
-    deliveries_to_distributor = [0]
-    deliveries_to_wholesaler = [0]
-    deliveries_to_retailer = [0]
-    deliveries_to_market = [0]
+    # deliveries 
+    deliveries_to_manufacturer = []
+    deliveries_to_distributor = []
+    deliveries_to_wholesaler = []
+    deliveries_to_retailer = []
+    deliveries_to_market = []
     # orders 
     orders_from_market = []
     orders_from_retailer = []
@@ -211,14 +215,7 @@ def the_beer_game(starting_balance, starting_inventory, starting_beer_price, sta
     for i in range(rounds):
         
         print('Round', i+1, 'of', rounds)
-        
-        # send deliveries 
-        send_beer('market', 'manufacturer', deliveries_to_manufacturer[i])
-        send_beer('manufacturer', 'distributor', deliveries_to_distributor[i])
-        send_beer('distributor', 'wholesaler', deliveries_to_wholesaler[i])
-        send_beer('wholesaler', 'retailer', deliveries_to_retailer[i])
-        send_beer('retailer', 'market', deliveries_to_market[i])
-
+    
         # store inventories for this i (after deliveries)
         manufacturer_inventory.append(get_inventory('manufacturer'))
         distributor_inventory.append(get_inventory('distributor'))
@@ -240,7 +237,7 @@ def the_beer_game(starting_balance, starting_inventory, starting_beer_price, sta
         manufacturer_backorder.append(round(sum(orders_from_distributor) - sum(deliveries_to_distributor)))
 
         # calculate base-stock: average demand from last 4 rounds + safety stock (the forecasted next market demand: last demand * average increase of last 4 rounds)
-        safety_stock = 1.1*starting_demand
+        safety_stock = 1.5*starting_demand
         if i < 3: 
             base_stock.append(4*np.average(demand)+safety_stock)
         else:
@@ -293,6 +290,13 @@ def the_beer_game(starting_balance, starting_inventory, starting_beer_price, sta
         deliveries_to_retailer.append(round(min(get_inventory('wholesaler'), orders_from_retailer[i] + wholesaler_backorder[i])))
         deliveries_to_market.append(round(min(get_inventory('retailer'), orders_from_market[i] + retailer_backorder[i])))
 
+        # send deliveries 
+        send_beer('market', 'manufacturer', deliveries_to_manufacturer[i])
+        send_beer('manufacturer', 'distributor', deliveries_to_distributor[i])
+        send_beer('distributor', 'wholesaler', deliveries_to_wholesaler[i])
+        send_beer('wholesaler', 'retailer', deliveries_to_retailer[i])
+        send_beer('retailer', 'market', deliveries_to_market[i])
+        
         for account in accounts:
             print(account, get_balance(account), 'ETH')
             print(account, get_inventory(account), 'BEER')
@@ -320,11 +324,11 @@ def the_beer_game(starting_balance, starting_inventory, starting_beer_price, sta
         'market_balance': market_balance,
 
         # deliveries (drop last index)
-        'deliveries_to_manufacturer': deliveries_to_manufacturer[:-1],
-        'deliveries_to_distributor': deliveries_to_distributor[:-1],
-        'deliveries_to_wholesaler': deliveries_to_wholesaler[:-1],
-        'deliveries_to_wholesaler': deliveries_to_wholesaler[:-1],
-        'deliveries_to_market': deliveries_to_market[:-1],
+        'deliveries_to_manufacturer': deliveries_to_manufacturer,
+        'deliveries_to_distributor': deliveries_to_distributor,
+        'deliveries_to_wholesaler': deliveries_to_wholesaler,
+        'deliveries_to_wholesaler': deliveries_to_wholesaler,
+        'deliveries_to_market': deliveries_to_market,
 
         # variables for calculating orders
         # base stock
@@ -385,15 +389,3 @@ if __name__ == '__main__':
     plt.xlabel('Round')
     plt.ylabel('Profit and Loss (ETH)')
     plt.show()
-    '''
-    reset_inventories(20)
-    reset_balances(200000)
-    for account in accounts:
-            print(account, get_balance(account), 'ETH')
-            print(account, get_inventory(account), 'BEER')
-    print(send_beer('manufacturer', 'distributor', 21))
-    print()
-    for account in accounts:
-            print(account, get_balance(account), 'ETH')
-            print(account, get_inventory(account), 'BEER')
-    '''

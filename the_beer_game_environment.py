@@ -1,16 +1,26 @@
-import gym
-from gym import spaces
+'''
+a custom reinforcement learning environment in accordance with openai's gym framework for the beer game
+'''
+# environment libraries
+from gym import Env
+from gym.spaces import Box
 import numpy as np
-# import web3 as Web3
-from the_beer_game import web3
-from the_beer_game import Web3
-from ethtoken.abi import EIP20_ABI
+import warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-STARTING_INVENTORY = 12
-STARTING_BALANCE = 200_000
-STARTING_DEMAND = 4
-ROUNDS = 10
-BEER_PRICE = 0.002
+# game libraries
+from web3 import Web3
+from ethtoken.abi import EIP20_ABI
+import numpy as np
+import matplotlib.pyplot as plt
+from gbm import GBM
+
+# global variables
+STARTING_DEMAND = 25
+STARTING_BALANCE = 10_000
+STARTING_INVENTORY = 50
+STARTING_BEER_PRICE = 0.002
+ROUNDS = 60
 
 # connect to ganache
 ganache_url = 'HTTP://127.0.0.1:8545'
@@ -40,6 +50,7 @@ accounts = {
         'private_key': '0xce4b3f8a6364c266b2a155acc16b379451e50c5e54eccfb119474943447a9f30'
     }
 }
+
 # BEER functions
 # ERC20 contract address (DeepBrew, BEER)
 # need to find a way to grab the contract address with code rather than manually
@@ -67,6 +78,7 @@ def send_beer(from_account, to_account, amount):
 
     deepbrew_txn = deepbrew.functions.transfer(
         accounts[to_account]['address'],
+        # send as much as possible in account, no more
         round(min(get_inventory(from_account), amount)), # round because ERC20 can't be divided, thus can only be traded in integer quantities
     ).buildTransaction({
         'gas': 70000,
@@ -154,172 +166,221 @@ def reset_balances(balance):
         if account != 'market' and balance != 1: # need to leave behind 1 ETH to cover gas fees, in the event that desired balance is 1, send nothing back
             send_eth('market', account, balance-1) # send back the desired amount -1 
 
+            
+'''
+███████ ███    ██ ██    ██ ██ ██████   ██████  ███    ██ ███    ███ ███████ ███    ██ ████████ 
+██      ████   ██ ██    ██ ██ ██   ██ ██    ██ ████   ██ ████  ████ ██      ████   ██    ██    
+█████   ██ ██  ██ ██    ██ ██ ██████  ██    ██ ██ ██  ██ ██ ████ ██ █████   ██ ██  ██    ██    
+██      ██  ██ ██  ██  ██  ██ ██   ██ ██    ██ ██  ██ ██ ██  ██  ██ ██      ██  ██ ██    ██    
+███████ ██   ████   ████   ██ ██   ██  ██████  ██   ████ ██      ██ ███████ ██   ████    ██    
+                                                                                               
+'''
 
-'''
-ENVIRONMENT CLASS
-'''
-class BeerGameEnv(gym.Env):
+class BeerGameEnv(Env):
     def __init__(self):
         super(BeerGameEnv, self).__init__()
-        self.action_space = spaces.Box(low=0, high=5_000,shape=(1,)) # range of actions that can be taken 
-        self.observation_space = spaces.Box(low=-np.inf, high=np.inf, # supposedly low and high are fairly arbitrary
-                                            shape=(8,), dtype=np.float64) # not sure about shape or dtype
+        # a game runs for 60 rounds
+        # 1x continuous integer action space
+        # the amount of BEER the agent orders each round 
+        self.action_space = Box(low=0, high=600, shape=(1,), dtype=np.int64)
+        # 8x continuous float32 observation space
+        # own BEER balance
+        # own ETH balance
+        # own BEER backorder
+        # supplier's BEER backorder
+        # deliveries made to client
+        # deliveries received from supplier
+        # BEER requested by client
+        # list of previous actions (BEER requested from supplier) (?)
+        self.observation_space = Box(low=-np.inf, high=np.inf,
+                                     shape=(1,8), dtype=np.float32)
+        
+        
+    def step(self, action):   
+        # increase round by 1
+        self.round += 1
+        
+        
+        '''for account in accounts:
+            print(account, get_balance(account), 'ETH')
+            print(account, get_inventory(account), 'BEER')
+
+        print('--------------------------------')'''
+        
+        # check if game is done
+        if self.round >= ROUNDS-1:
+            self.done = True
+            print('Game complete.')
+            
+        else:
+            self.done = False
+        
+        print('Round', self.round+1, 'of', ROUNDS)
+        
+        # store inventories for this round (after deliveries)
+        self.manufacturer_inventory.append(get_inventory('manufacturer'))
+        self.distributor_inventory.append(get_inventory('distributor'))
+        self.wholesaler_inventory.append(get_inventory('wholesaler'))
+        self.retailer_inventory.append(get_inventory('retailer'))
+        self.market_inventory.append(get_inventory('market'))
+
+        # store balances for this round
+        self.manufacturer_balance.append(get_balance('manufacturer'))
+        self.distributor_balance.append(get_balance('distributor'))
+        self.wholesaler_balance.append(get_balance('wholesaler'))
+        self.retailer_balance.append(get_balance('retailer'))
+        self.market_balance.append(get_balance('market'))
+
+        # calculate and store backorders
+        self.retailer_backorder.append(round(sum(self.orders_from_market) - sum(self.deliveries_to_market)))
+        self.wholesaler_backorder.append(round(sum(self.orders_from_retailer) - sum(self.deliveries_to_retailer)))
+        self.distributor_backorder.append(round(sum(self.orders_from_wholesaler) - sum(self.deliveries_to_wholesaler)))
+        self.manufacturer_backorder.append(round(sum(self.orders_from_distributor) - sum(self.deliveries_to_distributor)))
+
+        # calculate base-stock: average demand from last 4 rounds + safety stock (the forecasted next market demand: last demand * average increase of last 4 rounds)
+        safety_stock = 1.5*STARTING_DEMAND
+        if self.round < 3: 
+            self.base_stock.append(4*np.average(self.demand)+safety_stock)
+        else:
+            self.base_stock.append(4*np.average(self.demand[-4:])+safety_stock)
+        # calculate inventory position
+        if self.round == 0:
+            self.retailer_position.append(self.retailer_inventory[0])
+            self.wholesaler_position.append(self.wholesaler_inventory[0])
+            self.distributor_position.append(self.distributor_inventory[0])
+            self.manufacturer_position.append(self.manufacturer_inventory[0])
+        else:
+            # flowlity's equation 
+            self.retailer_position.append(round(sum(self.orders_from_retailer[-3:])
+                                           + sum(self.wholesaler_backorder[-4:]) - self.retailer_backorder[self.round]))
+            
+            self.wholesaler_position.append(round(sum(self.orders_from_wholesaler[-3:])
+                                             + sum(self.distributor_backorder[-4:]) - self.wholesaler_backorder[self.round]))
+            
+            self.distributor_position.append(round(sum(self.orders_from_distributor[-3:])
+                                              + sum(self.manufacturer_backorder[-4:]) - self.distributor_backorder[self.round]))
+            
+            self.manufacturer_position.append(round(sum(self.orders_from_manufacturer[-3:])
+                                               + sum(self.orders_from_market[-4:]) - self.manufacturer_backorder[self.round]))
+        
+        # calculate replenishment orders (base-stock policy), order zero if inventory position is greater than the base-stock
+        if self.retailer_inventory[self.round] > sum(self.demand[:-4]):
+            self.orders_from_market.append(round(self.demand[self.round])) # market demand order from retailer
+            self.orders_from_retailer.append(max(0,round((self.base_stock[self.round] - self.retailer_position[self.round])/10)))
+            self.orders_from_wholesaler.append(max(0,round((self.base_stock[self.round] - self.wholesaler_position[self.round])/10)))
+            self.orders_from_distributor.append(action[0])
+            self.orders_from_manufacturer.append(max(0,round((self.base_stock[self.round] - self.manufacturer_position[self.round])/10)))
+        else:
+            self.orders_from_market.append(round(self.demand[self.round])) # market demand order from retailer
+            self.orders_from_retailer.append(max(0,round(self.base_stock[self.round] - self.retailer_position[self.round])))
+            self.orders_from_wholesaler.append(max(0,round(self.base_stock[self.round] - self.wholesaler_position[self.round])))
+            self.orders_from_distributor.append(action[0])
+            self.orders_from_manufacturer.append(max(0,round(self.base_stock[self.round] - self.manufacturer_position[self.round])))
+
+        # send ETH corresponding to orders placed, a 50% markup is applied for each touchpoint in the supply chain
+        send_eth('market', 'retailer', self.orders_from_market[self.round]*self.beer_price[self.round]*3) # consumers purchase from retailer
+        send_eth('retailer', 'wholesaler', self.orders_from_retailer[self.round]*self.beer_price[self.round]*2.5)
+        send_eth('wholesaler', 'distributor', self.orders_from_wholesaler[self.round]*self.beer_price[self.round]*2)        
+        send_eth('distributor', 'manufacturer', self.orders_from_distributor[self.round]*self.beer_price[self.round]*1.5)
+        send_eth('manufacturer', 'market', self.orders_from_manufacturer[self.round]*self.beer_price[self.round]) # cost to manufacture beer
+
+        # calculate and append expenses
+        self.retailer_expenses.append(get_balance('retailer')-self.retailer_balance[self.round])
+        self.wholesaler_expenses.append(get_balance('wholesaler')-self.wholesaler_balance[self.round])
+        self.distributor_expenses.append(get_balance('distributor')-self.distributor_balance[self.round])
+        self.manufacturer_expenses.append(get_balance('manufacturer')-self.manufacturer_balance[self.round])
+
+        # calculate and append deliveries
+        self.deliveries_to_manufacturer.append(round(min(get_inventory('market'), self.orders_from_manufacturer[self.round])))
+        self.deliveries_to_distributor.append(round(min(get_inventory('manufacturer'), self.orders_from_distributor[self.round] + self.manufacturer_backorder[self.round])))
+        self.deliveries_to_wholesaler.append(round(min(get_inventory('distributor'), self.orders_from_wholesaler[self.round] + self.distributor_backorder[self.round])))
+        self.deliveries_to_retailer.append(round(min(get_inventory('wholesaler'), self.orders_from_retailer[self.round] + self.wholesaler_backorder[self.round])))
+        self.deliveries_to_market.append(round(min(get_inventory('retailer'), self.orders_from_market[self.round] + self.retailer_backorder[self.round])))
+        
+        # send deliveries 
+        send_beer('market', 'manufacturer', self.deliveries_to_manufacturer[self.round])
+        send_beer('manufacturer', 'distributor', self.deliveries_to_distributor[self.round])
+        send_beer('distributor', 'wholesaler', self.deliveries_to_wholesaler[self.round])
+        send_beer('wholesaler', 'retailer', self.deliveries_to_retailer[self.round])
+        send_beer('retailer', 'market', self.deliveries_to_market[self.round])
+
+        # write to text logs (used for live graphs)
+        with open('inventory.txt', 'a') as file:
+            file.write(str(self.round)+', '+str(self.retailer_inventory[self.round])+', '+str(self.wholesaler_inventory[self.round])+
+                       ', '+str(self.distributor_inventory[self.round])+', '+str(self.manufacturer_inventory[self.round])+'\n')
+            
+        with open('order.txt', 'a') as file:
+            file.write(str(self.round)+', '+str(self.orders_from_market[self.round])+', '+str(self.orders_from_retailer[self.round])+', '+str(self.orders_from_wholesaler[self.round])+
+                       ', '+str(self.orders_from_distributor[self.round])+', '+str(self.orders_from_manufacturer[self.round])+'\n')
+            
+        with open('backorder.txt', 'a') as file:
+            file.write(str(self.round)+', '+str(self.retailer_backorder[self.round])+', '+str(self.wholesaler_backorder[self.round])+
+                       ', '+str(self.distributor_backorder[self.round])+', '+str(self.manufacturer_backorder[self.round])+'\n')
+            
+        # reward functions
+        # disincentivize inventory less than 0
+        if self.distributor_inventory[self.round] < 0:
+            self.reward -= 100
+        # disincentivize any backorder
+        if self.distributor_backorder[self.round] > 0:
+            self.reward -= 100
+        # disincentivize ordering less than requested by client
+        if self.orders_from_wholesaler[self.round] < self.deliveries_to_wholesaler[self.round]:
+            self.reward -= 100
+        # incentivize profits
+        if self.distributor_balance[self.round] > self.distributor_balance[0]:
+            self.reward += 100
+        # disincentivize holding significantly more inventory than neighbours
+        if self.distributor_inventory[self.round] > 2*self.manufacturer_inventory[self.round] or self.distributor_inventory[self.round] > 2*self.wholesaler_inventory[self.round]:
+            self.reward -= 100
+        # need to initialize reward variable in the event that none of the above happens
+        else:
+            self.reward = 0
+        
+        print('Inventory:',self.observation[0])
+        print('Balance:',self.observation[1])
+        print('Client Order:',self.observation[2])
+        print('Own Order:',self.observation[3])
+        print('Own Backorder:',self.observation[4])
+        print('Supplier Backorder:',self.observation[5])
+        print('Deliveries Received:',self.observation[6])
+        print('Deliveries Made:',self.observation[7])
+        print(action[0])
+        print('--------------------------')
+        
+        # print('market orders',self.orders_from_market)
+        # print('retailer orders',self.orders_from_retailer)
+        # print('wholesaler orders',self.orders_from_wholesaler)
+        # print('distributor orders',self.orders_from_distributor)
+        # print('manufacturer orders',self.orders_from_manufacturer)
     
-    def step(self, action):
-        
-        reset_balances(STARTING_BALANCE)
-        reset_inventories(STARTING_INVENTORY)
-        
-        for i in range(ROUNDS):
-            # increase demand 
-            if i == 0:
-                self.demand.append(STARTING_DEMAND)
-                print('You are playing as the distributor.')
-            #elif i % 10 == 0:
-                #demand.append(round(demand[i-1]*1.5)) # increase demand by 50% every 10th round
-            else:
-                self.demand.append(self.demand[i-1]*1.1) # increase demand by 10% every other round
-            
-            print('Round', i+1, 'of', ROUNDS)
-            
-            # send deliveries 
-            send_beer('market', 'manufacturer', self.deliveries_to_manufacturer[i])
-            send_beer('manufacturer', 'distributor', self.deliveries_to_distributor[i])
-            send_beer('distributor', 'wholesaler', self.deliveries_to_wholesaler[i])
-            send_beer('wholesaler', 'retailer', self.deliveries_to_retailer[i])
-            send_beer('retailer', 'market', self.deliveries_to_market[i])
-
-            # store inventories for this i (after deliveries)
-            self.manufacturer_inventory.append(get_inventory('manufacturer'))
-            self.distributor_inventory.append(get_inventory('distributor'))
-            self.wholesaler_inventory.append(get_inventory('wholesaler'))
-            self.retailer_inventory.append(get_inventory('retailer'))
-            self.market_inventory.append(get_inventory('market'))
-
-            # store balances for this i
-            self.manufacturer_balance.append(get_balance('manufacturer'))
-            self.distributor_balance.append(get_balance('distributor'))
-            self.wholesaler_balance.append(get_balance('wholesaler'))
-            self.retailer_balance.append(get_balance('retailer'))
-            self.market_balance.append(get_balance('market'))
-
-            # calculate and store backorders
-            self.retailer_backorder.append(round(sum(self.orders_from_market) - sum(self.deliveries_to_market)))
-            self.wholesaler_backorder.append(round(sum(self.orders_from_retailer) - sum(self.deliveries_to_retailer)))
-            self.distributor_backorder.append(round(sum(self.orders_from_wholesaler) - sum(self.deliveries_to_wholesaler)))
-            self.manufacturer_backorder.append(round(sum(self.orders_from_distributor) - sum(self.deliveries_to_distributor)))
-
-            # calculate base-stock: average demand from last 4 rounds + safety stock (the forecasted next market demand: last demand * average increase of last 4 rounds)
-            safety_stock = 1.1*STARTING_DEMAND
-            if i < 3: 
-                self.base_stock.append(4*np.average(self.demand)+safety_stock)
-            else:
-                self.base_stock.append(4*np.average(self.demand[-4:])+safety_stock)
-            # calculate inventory position
-            if i == 0:
-                self.retailer_position.append(self.retailer_inventory[0])
-                self.wholesaler_position.append(self.wholesaler_inventory[0])
-                self.distributor_position.append(self.distributor_inventory[0])
-                self.manufacturer_position.append(self.manufacturer_inventory[0])
-            else:
-                '''
-                # my equation
-                retailer_position.append(round(retailer_inventory[i] + orders_from_retailer[i-1]
-                                            + wholesaler_backorder[i] - orders_from_market[i-1] - retailer_backorder[i]))
-                wholesaler_position.append(round(wholesaler_inventory[i] + orders_from_wholesaler[i-1]
-                                                + distributor_backorder[i-1] - orders_from_retailer[i-1] - wholesaler_backorder[i]))
-                distributor_position.append(round(distributor_inventory[i] + orders_from_distributor[i-1]
-                                                + manufacturer_backorder[i] - orders_from_wholesaler[i-1] - distributor_backorder[i]))
-                manufacturer_position.append(round(manufacturer_inventory[i] + orders_from_manufacturer[i-1]
-                                                - orders_from_distributor[i-1] - manufacturer_backorder[i])) # manufacturer's supplier (market) has no backorder
-                '''
-                # flowlity's equation 
-                self.retailer_position.append(round(sum(self.orders_from_retailer[-3:]) 
-                                            + sum(self.wholesaler_backorder[-4:]) - self.retailer_backorder[i]))
-                self.wholesaler_position.append(round(sum(self.orders_from_wholesaler[-3:]) 
-                                                + sum(self.distributor_backorder[-4:]) - self.wholesaler_backorder[i]))
-                self.distributor_position.append(round(sum(self.orders_from_distributor[-3:]) 
-                                                + sum(self.manufacturer_backorder[-4:]) - self.distributor_backorder[i]))
-                self.manufacturer_position.append(round(sum(self.orders_from_manufacturer[-3:]) 
-                                                + sum(self.orders_from_distributor[-4:]) - self.manufacturer_backorder[i]))
-                
-
-            # calculate replenishment orders (base-stock policy), order zero if inventory position is higher than the base-stock
-            self.orders_from_market.append(self.demand[i]) # market demand order from retailer
-            self.orders_from_retailer.append(max(0,round(self.base_stock[i] - self.retailer_position[i])))
-            self.orders_from_wholesaler.append(max(0,round(self.base_stock[i] - self.wholesaler_position[i])))
-
-            self.orders_from_distributor.append(int(action))
-            
-            self.orders_from_manufacturer.append(max(0,round(self.base_stock[i] - self.manufacturer_position[i])))
-
-            # send ETH corresponding to orders placed, a 50% markup is applied for each touchpoint in the supply chain
-            send_eth('market', 'retailer', self.orders_from_market[i]*BEER_PRICE*3) # consumers purchase from retailer
-            send_eth('retailer', 'wholesaler', self.orders_from_retailer[i]*BEER_PRICE*2.5)
-            send_eth('wholesaler', 'distributor', self.orders_from_wholesaler[i]*BEER_PRICE*2)
-            send_eth('distributor', 'manufacturer', self.orders_from_distributor[i]*BEER_PRICE*1.5)
-            send_eth('manufacturer', 'market', self.orders_from_manufacturer[i]*BEER_PRICE) # cost to manufacture beer
-
-            # calculate and append expenses
-            self.retailer_expenses.append(get_balance('retailer')-self.retailer_balance[i])
-            self.wholesaler_expenses.append(get_balance('wholesaler')-self.wholesaler_balance[i])
-            self.distributor_expenses.append(get_balance('distributor')-self.distributor_balance[i])
-            self.manufacturer_expenses.append(get_balance('manufacturer')-self.manufacturer_balance[i])
-
-            # calculate and append deliveries for next round
-            self.deliveries_to_manufacturer.append(round(min(get_inventory('market'), self.orders_from_manufacturer[i])))
-            self.deliveries_to_distributor.append(round(min(get_inventory('manufacturer'), self.orders_from_distributor[i] + self.manufacturer_backorder[i])))
-            self.deliveries_to_wholesaler.append(round(min(get_inventory('distributor'), self.orders_from_wholesaler[i] + self.distributor_backorder[i])))
-            self.deliveries_to_retailer.append(round(min(get_inventory('wholesaler'), self.orders_from_retailer[i] + self.wholesaler_backorder[i])))
-            self.deliveries_to_market.append(round(min(get_inventory('retailer'), self.orders_from_market[i] + self.retailer_backorder[i])))
-
-            for account in accounts:
-                print(account, get_balance(account), 'ETH')
-                print(account, get_inventory(account), 'BEER')
-
-            print('--------------------------------')
-
-            if i == ROUNDS-1:
-                print('Game complete.')
-                
-            # rewards (these will probably need a fair bit of tweaking)
-            # disincentivize inventory less than 0
-            if self.distributor_inventory[i] < 0:
-                self.reward -= 100
-            # disincentivize any backorder
-            if self.distributor_backorder[i] > 0:
-                self.reward -= 100
-            # disincentivize ordering less than requested by client
-            if self.orders_from_wholesaler[i] < self.deliveries_to_wholesaler[i]:
-                self.reward -= 100
-            # incentivize profits
-            if self.distributor_balance[i] > self.distributor_balance[0]:
-                self.reward += 100
-            # disincentivize holding significantly more inventory than neighbours
-            if self.distributor_inventory[i] > 2*self.manufacturer_inventory[i] or self.distributor_inventory[i] > 2*self.wholesaler_inventory[i]:
-                self.reward -= 100
-            # need to initialize reward variable in the event that none of the above happens
-            else:
-                self.reward = 0
-
-        self.done = True
-        
+        # set placeholder info
         info = {}
+        # set observation
+        self.observation = [self.distributor_inventory[self.round], self.distributor_balance[self.round], self.orders_from_wholesaler[self.round], 
+                            self.orders_from_distributor[self.round], self.distributor_backorder[self.round], self.manufacturer_backorder[self.round],
+                            self.deliveries_to_distributor[self.round], self.deliveries_to_wholesaler[self.round]]
         
-        observation = [self.distributor_inventory, self.distributor_balance, self.orders_from_wholesaler,
-                       self.orders_from_distributor, self.distributor_backorder, self.manufacturer_backorder,
-                       self.deliveries_to_distributor, self.deliveries_to_wholesaler]
+        self.observation = np.array(self.observation, dtype=object)
         
-        observation = np.array(observation)
-        
-        return observation, self.reward, self.done, info
+        # return step info
+        return self.observation, self.reward, self.done, info
+    
+    def render(self):
+        pass
     
     def reset(self):
-        
-        # reset balances and inventories
         reset_balances(STARTING_BALANCE)
         reset_inventories(STARTING_INVENTORY)
+        
+        # clear text files (used for animated plots)
+        open('inventory.txt', 'w').close()
+        open('order.txt', 'w').close()
+        open('backorder.txt', 'w').close()
+        
         # VARIABLES
+        # used for indexing
+        self.round_index = []
         # demand
         self.demand = []
         # base stock
@@ -336,12 +397,12 @@ class BeerGameEnv(gym.Env):
         self.wholesaler_balance = []
         self.retailer_balance = []
         self.market_balance = []
-        # deliveries - offset index by 1 as deliveries are calculated for the turn after the current turn
-        self.deliveries_to_manufacturer = [0]
-        self.deliveries_to_distributor = [0]
-        self.deliveries_to_wholesaler = [0]
-        self.deliveries_to_retailer = [0]
-        self.deliveries_to_market = [0]
+        # deliveries 
+        self.deliveries_to_manufacturer = []
+        self.deliveries_to_distributor = []
+        self.deliveries_to_wholesaler = []
+        self.deliveries_to_retailer = []
+        self.deliveries_to_market = []
         # orders 
         self.orders_from_market = []
         self.orders_from_retailer = []
@@ -362,17 +423,22 @@ class BeerGameEnv(gym.Env):
         self.retailer_expenses = []
         self.wholesaler_expenses = []
         self.distributor_expenses = []
-        self.manufacturer_expenses = []
+        self.manufacturer_expenses = []    
+        
+        # geometric brownian motion for demand and BEER price
+        self.demand = GBM(STARTING_DEMAND, 0.9, 0.9, 1/ROUNDS, 1).prices
+        self.beer_price = GBM(STARTING_BEER_PRICE, 0.9, 0.9, 1/ROUNDS, 1).prices
+        
+        # set round to zero
+        self.round = -1
         
         self.done = False
         
-        observation = [self.distributor_inventory, self.distributor_balance, self.orders_from_wholesaler,
-                       self.orders_from_distributor, self.distributor_backorder, self.manufacturer_backorder,
-                       self.deliveries_to_distributor, self.deliveries_to_wholesaler]
+        # set observation
+        self.observation = [self.distributor_inventory, self.distributor_balance, self.orders_from_wholesaler, 
+                            self.orders_from_distributor, self.distributor_backorder, self.manufacturer_backorder,
+                            self.deliveries_to_distributor, self.deliveries_to_wholesaler]
         
-        observation = np.array(observation)
+        self.observation = np.array(self.observation, dtype=object)
         
-        return observation
-    
-    '''# the_beer_game(starting_balance, starting_inventory, beer_price, starting_demand, rounds)
-    df = the_beer_game(250000, 12, 0.002, 4, 50)'''
+        return self.observation

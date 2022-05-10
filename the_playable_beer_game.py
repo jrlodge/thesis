@@ -1,3 +1,8 @@
+'''
+run this script to manually play the beer game as the distributor
+the other three agents will act according to the base-stock policy
+enter the amount of BEER you wish to order each round into the terminal as prompted
+'''
 # libraries
 from web3 import Web3
 from ethtoken.abi import EIP20_ABI

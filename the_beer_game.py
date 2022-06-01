@@ -209,8 +209,8 @@ def the_beer_game(starting_balance, starting_inventory, starting_beer_price, sta
     manufacturer_expenses = []
     
     # geometric brownian motion for demand and BEER price
-    demand = GBM(starting_demand, 2, 2, 1/rounds, 1).prices
-    beer_price = GBM(starting_beer_price, 2, 2, 1/rounds, 1).prices
+    demand = GBM(starting_demand, 0.9, 0.9, 1/rounds, 1).prices
+    beer_price = GBM(starting_beer_price, 0.8, 0.5, 1/rounds, 1).prices
     
     for i in range(rounds):
         
@@ -372,7 +372,7 @@ if __name__ == '__main__':
         sys.exit('Connection to Ganache unsuccessful.')
     
     # the_beer_game(starting_balance, starting_inventory, beer_price, starting_demand, rounds)
-    df = the_beer_game(250000, 12, 0.002, 4, 50)
+    df = the_beer_game(250000, 10, 0.005, 5, 60)
     df.plot(y=['orders_from_manufacturer','orders_from_distributor','orders_from_wholesaler','orders_from_retailer','market_demand']) 
     plt.xlabel('Round')
     plt.ylabel('Orders')

@@ -16,10 +16,10 @@ import matplotlib.pyplot as plt
 from gbm import GBM
 
 # global variables
-STARTING_DEMAND = 25
+STARTING_DEMAND = 2
 STARTING_BALANCE = 10_000
-STARTING_INVENTORY = 50
-STARTING_BEER_PRICE = 0.002
+STARTING_INVENTORY = 5
+STARTING_BEER_PRICE = 0.005
 ROUNDS = 60
 
 # connect to ganache
@@ -182,7 +182,7 @@ class BeerGameEnv(Env):
         # a game runs for 60 rounds
         # 1x continuous integer action space
         # the amount of BEER the agent orders each round 
-        self.action_space = Box(low=0, high=600, shape=(1,), dtype=np.int64)
+        self.action_space = Box(low=0, high=100, shape=(1,), dtype=np.int64)
         # 8x continuous float32 observation space
         # own BEER balance
         # own ETH balance
@@ -193,8 +193,7 @@ class BeerGameEnv(Env):
         # BEER requested by client
         # list of previous actions (BEER requested from supplier) (?)
         self.observation_space = Box(low=-np.inf, high=np.inf,
-                                     shape=(1,8), dtype=np.float32)
-        
+                                     shape=(1,8), dtype=np.float32) 
         
     def step(self, action):   
         # increase round by 1
@@ -318,34 +317,18 @@ class BeerGameEnv(Env):
                        ', '+str(self.distributor_backorder[self.round])+', '+str(self.manufacturer_backorder[self.round])+'\n')
             
         # reward functions
-        # disincentivize inventory less than 0
-        if self.distributor_inventory[self.round] < 0:
-            self.reward -= 100
-        # disincentivize any backorder
-        if self.distributor_backorder[self.round] > 0:
-            self.reward -= 100
-        # disincentivize ordering less than requested by client
-        if self.orders_from_wholesaler[self.round] < self.deliveries_to_wholesaler[self.round]:
-            self.reward -= 100
-        # incentivize profits
-        if self.distributor_balance[self.round] > self.distributor_balance[0]:
-            self.reward += 100
-        # disincentivize holding significantly more inventory than neighbours
-        if self.distributor_inventory[self.round] > 2*self.manufacturer_inventory[self.round] or self.distributor_inventory[self.round] > 2*self.wholesaler_inventory[self.round]:
-            self.reward -= 100
-        # need to initialize reward variable in the event that none of the above happens
-        else:
-            self.reward = 0
+        self.reward = -1*self.distributor_backorder[self.round] + (self.deliveries_to_wholesaler[self.round]-self.orders_from_wholesaler[self.round]) + 0.8*(self.distributor_balance[self.round]-self.distributor_balance[self.round-1])/self.beer_price[self.round] - 0.8*abs(sum(self.orders_from_wholesaler[-4:])-self.distributor_inventory[self.round])
         
-        print('Inventory:',self.observation[0])
+        print(self.observation)
+        '''print('Inventory:',self.observation[0])
         print('Balance:',self.observation[1])
         print('Client Order:',self.observation[2])
         print('Own Order:',self.observation[3])
         print('Own Backorder:',self.observation[4])
         print('Supplier Backorder:',self.observation[5])
         print('Deliveries Received:',self.observation[6])
-        print('Deliveries Made:',self.observation[7])
-        print(action[0])
+        print('Deliveries Made:',self.observation[7])'''
+        print(action)
         print('--------------------------')
         
         # print('market orders',self.orders_from_market)
@@ -427,7 +410,7 @@ class BeerGameEnv(Env):
         
         # geometric brownian motion for demand and BEER price
         self.demand = GBM(STARTING_DEMAND, 0.9, 0.9, 1/ROUNDS, 1).prices
-        self.beer_price = GBM(STARTING_BEER_PRICE, 0.9, 0.9, 1/ROUNDS, 1).prices
+        self.beer_price = GBM(STARTING_BEER_PRICE, 0.8, 0.5, 1/ROUNDS, 1).prices
         
         # set round to zero
         self.round = -1

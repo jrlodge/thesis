@@ -181,7 +181,7 @@ while True:
 
     # Normal saving at every time step
     model.save_weights("Actor_Critic.h5")
-    if running_reward > 5:  # Condition to consider the task solved
+    if running_reward > 1000:  # Condition to consider the task solved
         # 
         print("Solved at episode {}!".format(episode_count))
         # Conditional saving, that means if a desired rewarad is obtained then 

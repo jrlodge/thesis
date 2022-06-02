@@ -21,7 +21,7 @@ STARTING_DEMAND = 10
 STARTING_BALANCE = 10_000
 STARTING_INVENTORY = 10
 STARTING_BEER_PRICE = 0.005
-ROUNDS = 60
+ROUNDS = 62
 
 # connect to ganache
 ganache_url = 'HTTP://127.0.0.1:8545'
@@ -474,7 +474,7 @@ class BeerGameEnv(Env):
         self.manufacturer_expenses = []    
         
         # geometric brownian motion for demand and BEER price
-        self.demand = GBM(STARTING_DEMAND, 0.9, 0.9, 1/ROUNDS, 1).prices
+        self.demand = GBM(STARTING_DEMAND, 0.4, 0.25, 1/ROUNDS, 1).prices
         self.beer_price = GBM(STARTING_BEER_PRICE, 0.8, 0.5, 1/ROUNDS, 1).prices
         
         # set round to zero

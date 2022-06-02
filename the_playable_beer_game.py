@@ -2,6 +2,7 @@
 run this script to manually play the beer game as the distributor
 the other three agents will act according to the base-stock policy
 enter the amount of BEER you wish to order each round into the terminal as prompted
+this script is particularly useful in helping understand what decisions the DRL agent has to make, and what data it uses to make those decisions
 '''
 # libraries
 from web3 import Web3

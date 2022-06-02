@@ -308,59 +308,59 @@ def the_beer_game(starting_balance, starting_inventory, starting_beer_price, sta
 
     # create a dataframe to track game variables
     df = pd.DataFrame({
-        'beer_price': beer_price,
-        'demand': demand,
+        'beer_price': beer_price[:rounds],
+        'demand': demand[:rounds],
 
         # inventory and balance
-        'manufacturer_inventory': manufacturer_inventory,
-        'manufacturer_balance': manufacturer_balance,
-        'distributor_inventory': distributor_inventory,
-        'distributor_balance': distributor_balance,
-        'wholesaler_inventory': wholesaler_inventory,
-        'wholesaler_balance': wholesaler_balance,
-        'retailer_inventory': retailer_inventory,
-        'retailer_balance': retailer_balance,
-        'market_inventory': market_inventory,
-        'market_balance': market_balance,
+        'manufacturer_inventory': manufacturer_inventory[:rounds],
+        'manufacturer_balance': manufacturer_balance[:rounds],
+        'distributor_inventory': distributor_inventory[:rounds],
+        'distributor_balance': distributor_balance[:rounds],
+        'wholesaler_inventory': wholesaler_inventory[:rounds],
+        'wholesaler_balance': wholesaler_balance[:rounds],
+        'retailer_inventory': retailer_inventory[:rounds],
+        'retailer_balance': retailer_balance[:rounds],
+        'market_inventory': market_inventory[:rounds],
+        'market_balance': market_balance[:rounds],
 
         # deliveries (drop last index)
-        'deliveries_to_manufacturer': deliveries_to_manufacturer,
-        'deliveries_to_distributor': deliveries_to_distributor,
-        'deliveries_to_wholesaler': deliveries_to_wholesaler,
-        'deliveries_to_wholesaler': deliveries_to_wholesaler,
-        'deliveries_to_market': deliveries_to_market,
+        'deliveries_to_manufacturer': deliveries_to_manufacturer[:rounds],
+        'deliveries_to_distributor': deliveries_to_distributor[:rounds],
+        'deliveries_to_wholesaler': deliveries_to_wholesaler[:rounds],
+        'deliveries_to_wholesaler': deliveries_to_wholesaler[:rounds],
+        'deliveries_to_market': deliveries_to_market[:rounds],
 
         # variables for calculating orders
         # base stock
-        'base_stock': base_stock,
+        'base_stock': base_stock[:rounds],
 
         # backorders
-        'manufacturer_backorder': manufacturer_backorder,
-        'distributor_backorder': distributor_backorder,
-        'wholesaler_backorder': wholesaler_backorder,
-        'retailer_backorder': retailer_backorder,
+        'manufacturer_backorder': manufacturer_backorder[:rounds],
+        'distributor_backorder': distributor_backorder[:rounds],
+        'wholesaler_backorder': wholesaler_backorder[:rounds],
+        'retailer_backorder': retailer_backorder[:rounds],
 
         # inventory positions
-        'manufacturer_position': manufacturer_position,
-        'distributor_position': distributor_position,
-        'wholesaler_position': wholesaler_position,
-        'retailer_position': retailer_position,
+        'manufacturer_position': manufacturer_position[:rounds],
+        'distributor_position': distributor_position[:rounds],
+        'wholesaler_position': wholesaler_position[:rounds],
+        'retailer_position': retailer_position[:rounds],
 
         # orders
-        'market_demand': orders_from_market,
-        'orders_from_retailer': orders_from_retailer,
-        'orders_from_wholesaler': orders_from_wholesaler,
-        'orders_from_distributor': orders_from_distributor,
-        'orders_from_manufacturer': orders_from_manufacturer,
+        'market_demand': orders_from_market[:rounds],
+        'orders_from_retailer': orders_from_retailer[:rounds],
+        'orders_from_wholesaler': orders_from_wholesaler[:rounds],
+        'orders_from_distributor': orders_from_distributor[:rounds],
+        'orders_from_manufacturer': orders_from_manufacturer[:rounds],
 
         #expenses
-        'retailer_expenses': retailer_expenses,
-        'wholesaler_expenses': wholesaler_expenses,
-        'distributor_expenses': distributor_expenses,
-        'manufacturer_expenses': manufacturer_expenses
+        'retailer_expenses': retailer_expenses[:rounds],
+        'wholesaler_expenses': wholesaler_expenses[:rounds],
+        'distributor_expenses': distributor_expenses[:rounds],
+        'manufacturer_expenses': manufacturer_expenses[:rounds]
         })
     # save match log to excel and return
-    df.to_excel('match.xlsx')
+    # df.to_excel('match.xlsx')
     return df
 
 if __name__ == '__main__':
@@ -372,7 +372,7 @@ if __name__ == '__main__':
         sys.exit('Connection to Ganache unsuccessful.')
     
     # the_beer_game(starting_balance, starting_inventory, beer_price, starting_demand, rounds)
-    df = the_beer_game(250000, 10, 0.005, 5, 60)
+    df = the_beer_game(250000, 10, 0.005, 10, 5)
     df.plot(y=['orders_from_manufacturer','orders_from_distributor','orders_from_wholesaler','orders_from_retailer','market_demand']) 
     plt.xlabel('Round')
     plt.ylabel('Orders')

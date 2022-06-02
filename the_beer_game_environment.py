@@ -4,6 +4,7 @@ a custom reinforcement learning environment in accordance with openai's gym fram
 # environment libraries
 from gym import Env
 from gym.spaces import Box
+import pandas as pd
 import numpy as np
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -16,9 +17,9 @@ import matplotlib.pyplot as plt
 from gbm import GBM
 
 # global variables
-STARTING_DEMAND = 2
+STARTING_DEMAND = 10
 STARTING_BALANCE = 10_000
-STARTING_INVENTORY = 5
+STARTING_INVENTORY = 10
 STARTING_BEER_PRICE = 0.005
 ROUNDS = 60
 
@@ -208,6 +209,61 @@ class BeerGameEnv(Env):
         
         # check if game is done
         if self.round >= ROUNDS-1:
+
+            # create a dataframe
+            self.df = pd.DataFrame({
+            'beer_price': self.beer_price[:ROUNDS-1],
+            'demand': self.demand[:ROUNDS-1],
+
+            # inventory and balance
+            'manufacturer_inventory': self.manufacturer_inventory[:ROUNDS+1],
+            'manufacturer_balance': self.manufacturer_balance[:ROUNDS+1],
+            'distributor_inventory': self.distributor_inventory[:ROUNDS+1],
+            'distributor_balance': self.distributor_balance[:ROUNDS+1],
+            'wholesaler_inventory': self.wholesaler_inventory[:ROUNDS+1],
+            'wholesaler_balance': self.wholesaler_balance[:ROUNDS+1],
+            'retailer_inventory': self.retailer_inventory[:ROUNDS+1],
+            'retailer_balance': self.retailer_balance[:ROUNDS+1],
+            'market_inventory': self.market_inventory[:ROUNDS+1],
+            'market_balance': self.market_balance[:ROUNDS+1],
+
+            # deliveries (drop last index)
+            'deliveries_to_manufacturer': self.deliveries_to_manufacturer[:ROUNDS+1],
+            'deliveries_to_distributor': self.deliveries_to_distributor[:ROUNDS+1],
+            'deliveries_to_wholesaler': self.deliveries_to_wholesaler[:ROUNDS+1],
+            'deliveries_to_wholesaler': self.deliveries_to_wholesaler[:ROUNDS+1],
+            'deliveries_to_market': self.deliveries_to_market[:ROUNDS+1],
+
+            # variables for calculating orders
+            # base stock
+            'base_stock': self.base_stock[:ROUNDS+1],
+
+            # backorders
+            'manufacturer_backorder': self.manufacturer_backorder[:ROUNDS+1],
+            'distributor_backorder': self.distributor_backorder[:ROUNDS+1],
+            'wholesaler_backorder': self.wholesaler_backorder[:ROUNDS+1],
+            'retailer_backorder': self.retailer_backorder[:ROUNDS+1],
+
+            # inventory positions
+            'manufacturer_position': self.manufacturer_position[:ROUNDS+1],
+            'distributor_position': self.distributor_position[:ROUNDS+1],
+            'wholesaler_position': self.wholesaler_position[:ROUNDS+1],
+            'retailer_position': self.retailer_position[:ROUNDS+1],
+
+            # orders
+            'market_demand': self.orders_from_market[:ROUNDS+1],
+            'orders_from_retailer': self.orders_from_retailer[:ROUNDS+1],
+            'orders_from_wholesaler': self.orders_from_wholesaler[:ROUNDS+1],
+            'orders_from_distributor': self.orders_from_distributor[:ROUNDS+1],
+            'orders_from_manufacturer': self.orders_from_manufacturer[:ROUNDS+1],
+
+            #expenses
+            'retailer_expenses': self.retailer_expenses[:ROUNDS+1],
+            'wholesaler_expenses': self.wholesaler_expenses[:ROUNDS+1],
+            'distributor_expenses': self.distributor_expenses[:ROUNDS+1],
+            'manufacturer_expenses': self.manufacturer_expenses[:ROUNDS+1]
+            })
+            
             self.done = True
             print('Game complete.')
             
@@ -339,10 +395,19 @@ class BeerGameEnv(Env):
     
         # set placeholder info
         info = {}
+
+        # normalize observations
+        normalized_inventory = (self.distributor_inventory[self.round])/300
+        normalized_balance = (self.distributor_balance[self.round])/15000
+        normalized_client_order = (self.orders_from_wholesaler[self.round])/150                            
+        normalized_action = (self.orders_from_distributor[self.round])/150 
+        normalized_own_backorder = (self.distributor_backorder[self.round])/150
+        normalized_supplier_backorder = (self.manufacturer_backorder[self.round])/150
+        normalized_deliveries_received = (self.deliveries_to_distributor[self.round])/150
+        normalized_deliveries_made = (self.deliveries_to_wholesaler[self.round])/150
+
         # set observation
-        self.observation = [self.distributor_inventory[self.round], self.distributor_balance[self.round], self.orders_from_wholesaler[self.round], 
-                            self.orders_from_distributor[self.round], self.distributor_backorder[self.round], self.manufacturer_backorder[self.round],
-                            self.deliveries_to_distributor[self.round], self.deliveries_to_wholesaler[self.round]]
+        self.observation = [normalized_inventory, normalized_balance, normalized_client_order, normalized_action, normalized_own_backorder, normalized_supplier_backorder, normalized_deliveries_received, normalized_deliveries_made]
         
         self.observation = np.array(self.observation, dtype=object)
         
@@ -418,9 +483,7 @@ class BeerGameEnv(Env):
         self.done = False
         
         # set observation
-        self.observation = [self.distributor_inventory, self.distributor_balance, self.orders_from_wholesaler, 
-                            self.orders_from_distributor, self.distributor_backorder, self.manufacturer_backorder,
-                            self.deliveries_to_distributor, self.deliveries_to_wholesaler]
+        self.observation = [0,0,0,0,0,0,0,0]
         
         self.observation = np.array(self.observation, dtype=object)
         

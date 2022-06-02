@@ -4,7 +4,7 @@ import gym
 import numpy as np
 import tensorflow as tf
 from tensorflow import keras
-from tensorflow.keras import layers
+from keras import layers
 
 num_inputs = 8
 num_actions = 100
